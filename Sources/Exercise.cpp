@@ -5,18 +5,21 @@
 #include <Kore/Math/Core.h>
 #include <Kore/System.h>
 #include <Kore/Input/Keyboard.h>
-#include <Kore/Input/Mouse.h>
+#include <Kore/Input/Mouse.h>1
 #include <Kore/Audio/Mixer.h>
 #include <Kore/Graphics/Image.h>
 #include <Kore/Graphics/Graphics.h>
+#include <Kore/Log.h>
 #include "ObjLoader.h"
 
 using namespace Kore;
 
+#define CAMERA_ROTATION_SPEED_X 0.001
+#define CAMERA_ROTATION_SPEED_Y 0.001
+
 namespace {
 	const int width = 1024;
 	const int height = 768;
-	double startTime;
 	Shader* vertexShader;
 	Shader* fragmentShader;
 	Program* program;
@@ -26,53 +29,212 @@ namespace {
 	Texture* image;
 	TextureUnit tex;
 
+	Kore::ConstantLocation cl_modelViewMatrix;
+	Kore::ConstantLocation cl_normalMatrix;
+
+	Kore::ConstantLocation cl_lightPos;
+
+	double startTime;
+	float lastT = 0;
+
+	const float movementSpeed = 10;
+
+	float cameraX;
+	float cameraY;
+	float cameraZ;
+
+	float cameraRotX = 0;
+	float cameraRotY = 0;
+	float cameraRotZ = 0;
+
+	float lightPosX;
+	float lightPosY;
+	float lightPosZ;
+
+	bool moveUp = false;
+	bool moveDown = false;
+	bool moveRight = false;
+	bool moveLeft = false;
+	bool moveForward = false;
+	bool moveBackward = false;
+
+	bool rotate = false;
+	int mousePressX, mousePressY;
+
+	void initCamera() {
+		cameraX = 0;
+		cameraY = 0;
+		cameraZ = 20;
+
+		cameraRotX = 0;
+		cameraRotY = Kore::pi;
+		cameraRotZ = 0;
+	}
+
+	void rotate3d(float &x, float &y, float &z, float rx, float ry, float rz) {
+		float d1x = Kore::cos(ry) * x + Kore::sin(ry) * z;
+		float d1y = y;
+		float d1z = Kore::cos(ry) * z - Kore::sin(ry) * x;
+		float d2x = d1x;
+		float d2y = Kore::cos(rx) * d1y - Kore::sin(rx) * d1z;
+		float d2z = Kore::cos(rx) * d1z + Kore::sin(rx) * d1y;
+		float d3x = Kore::cos(rz) * d2x - Kore::sin(rz) * d2y;
+		float d3y = Kore::cos(rz) * d2y + Kore::sin(rz) * d2x;
+		float d3z = d2z;
+
+		x = d3x;
+		y = d3y;
+		z = d3z;
+	}
+
 	void update() {
 		float t = (float)(System::time() - startTime);
+
+		float timeSinceLastFrame = t - lastT;
+		lastT = t;
+
+		//update camera:
+		float cameraMovementX = 0;
+		float cameraMovementY = 0;
+		float cameraMovementZ = 0;
+
+		if (moveUp)
+			cameraMovementY += timeSinceLastFrame * movementSpeed;
+		if (moveDown)
+			cameraMovementY -= timeSinceLastFrame * movementSpeed;
+		if (moveLeft)
+			cameraMovementX -= timeSinceLastFrame * movementSpeed;
+		if (moveRight)
+			cameraMovementX += timeSinceLastFrame * movementSpeed;
+		if (moveForward)
+			cameraMovementZ += timeSinceLastFrame * movementSpeed;
+		if (moveBackward)
+			cameraMovementZ -= timeSinceLastFrame * movementSpeed;
+
+		// rotate direction according to current rotation
+		rotate3d(cameraMovementX, cameraMovementY, cameraMovementZ, -cameraRotX, 0, -cameraRotZ);
+		rotate3d(cameraMovementX, cameraMovementY, cameraMovementZ, 0, -cameraRotY, -cameraRotZ);
+
+		cameraX += cameraMovementX;
+		cameraY += cameraMovementY;
+		cameraZ += cameraMovementZ;
+
+		// prepare model view matrix and pass it to shaders
+		Kore::mat4 modelView = Kore::mat4::RotationZ(cameraRotZ)
+			* Kore::mat4::RotationX(cameraRotX)
+			* Kore::mat4::RotationY(cameraRotY)
+			* Kore::mat4::Translation(-cameraX, -cameraY, -cameraZ);
+
+		Graphics::setMatrix(cl_modelViewMatrix, modelView);
+
+		// prepare normal matrix and pass it to shaders 
+		Kore::mat4 normalMatrix = modelView;
+		normalMatrix.Invert();
+		normalMatrix = normalMatrix.Transpose();
+		Graphics::setMatrix(cl_normalMatrix, normalMatrix);
+
+
+		// update light pos
+		lightPosX = 20 * Kore::sin(2 * t);
+		lightPosY = 10;
+		lightPosZ = 20 * Kore::cos(2 * t);
+		Graphics::setFloat3(cl_lightPos, lightPosX, lightPosY, lightPosZ);
+
+
 		Kore::Audio::update();
-		
+
 		Graphics::begin();
 		Graphics::clear(Graphics::ClearColorFlag | Graphics::ClearDepthFlag, 0xff000000);
-		
+
 		program->set();
 		Graphics::setTexture(tex, image);
 		Graphics::setVertexBuffer(*vertexBuffer);
 		Graphics::setIndexBuffer(*indexBuffer);
 		Graphics::drawIndexedVertices();
 
-		/************************************************************************/
-		/* Exercise 5                                                           */
-		/************************************************************************/
-		/* Set values in your shader using the constant locations you defined, e.g.
-		 * Graphics::setMatrix(ConstantLocation, Value);
-		*/
-
-
 		Graphics::end();
 		Graphics::swapBuffers();
 	}
 
 	void keyDown(KeyCode code, wchar_t character) {
-		if (code == Key_Left) {
-			// ...
+		switch (code)
+		{
+		case Key_Left:
+		case Key_A:
+			moveLeft = true;
+			break;
+		case Key_Right:
+		case Key_D:
+			moveRight = true;
+			break;
+		case Key_Up:
+			moveUp = true;
+			break;
+		case Key_Down:
+			moveDown = true;
+			break;
+		case Key_W:
+			moveForward = true;
+			break;
+		case Key_S:
+			moveBackward = true;
+			break;
+		case Key_R:
+			initCamera();
+			break;
+		case Key_L:
+			Kore::log(Kore::LogLevel::Info, "Position: (%.2f, %.2f, %.2f) - Rotation: (%.2f, %.2f, %.2f)\n", cameraX, cameraY, cameraZ, cameraRotX, cameraRotY, cameraRotZ);
+			break;
+		default:
+			break;
 		}
 	}
 
 	void keyUp(KeyCode code, wchar_t character) {
-		if (code == Key_Left) {
-			// ...
+		switch (code)
+		{
+		case Key_Left:
+		case Key_A:
+			moveLeft = false;
+			break;
+		case Key_Right:
+		case Key_D:
+			moveRight = false;
+			break;
+		case Key_Up:
+			moveUp = false;
+			break;
+		case Key_Down:
+			moveDown = false;
+			break;
+		case Key_W:
+			moveForward = false;
+			break;
+		case Key_S:
+			moveBackward = false;
+			break;
+		default:
+			break;
 		}
 	}
 
 	void mouseMove(int x, int y, int movementX, int movementY) {
-
+		if (rotate) {
+			cameraRotX += (float)((mousePressY - y) * CAMERA_ROTATION_SPEED_X);
+			cameraRotY += (float)((mousePressX - x) * CAMERA_ROTATION_SPEED_Y);
+			mousePressX = x;
+			mousePressY = y;
+		}
 	}
-	
-	void mousePress(int button, int x, int y) {
 
+	void mousePress(int button, int x, int y) {
+		rotate = true;
+		mousePressX = x;
+		mousePressY = y;
 	}
 
 	void mouseRelease(int button, int x, int y) {
-
+		rotate = false;
 	}
 
 	void init() {
@@ -101,12 +263,16 @@ namespace {
 		/* Exercise 5                                                           */
 		/************************************************************************/
 		/* Get constant locations from your shader here, e.g.
-		 * program->getConstantLocation("bla"); 
-		 */
-		
+		* program->getConstantLocation("bla");
+		*/
+
+		cl_modelViewMatrix = program->getConstantLocation("modelViewMatrix");
+		cl_normalMatrix = program->getConstantLocation("normalMatrix");
+		cl_lightPos = program->getConstantLocation("lightPos");
+
 
 		// Set this to 1.0f when you do your transformations in the vertex shader
-		float scale = 0.4;
+		float scale = 3.0f;
 
 		vertexBuffer = new VertexBuffer(mesh->numVertices, structure, 0);
 		{
@@ -140,7 +306,7 @@ namespace {
 
 int kore(int argc, char** argv) {
 	Application* app = new Application(argc, argv, width, height, 0, false, "Exercise5");
-	
+
 	init();
 
 	app->setCallback(update);
@@ -149,16 +315,18 @@ int kore(int argc, char** argv) {
 	Kore::Mixer::init();
 	Kore::Audio::init();
 	//Kore::Mixer::play(new SoundStream("back.ogg", true));
-	
+
 	Keyboard::the()->KeyDown = keyDown;
 	Keyboard::the()->KeyUp = keyUp;
 	Mouse::the()->Move = mouseMove;
 	Mouse::the()->Press = mousePress;
 	Mouse::the()->Release = mouseRelease;
 
+	initCamera();
+
 	app->start();
 
 	delete app;
-	
+
 	return 0;
 }
