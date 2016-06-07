@@ -1,12 +1,11 @@
-#ifdef GL_ES
 precision mediump float;
-#endif
+
 
 uniform sampler2D tex;
 varying vec2 texCoord;
 varying vec3 normal;
 varying vec3 lightDirection;
-varying vec3 eyeCoord;
+varying vec3 eyeCoord; 
 
 void kore() {
 	

@@ -1,11 +1,10 @@
 #include "pch.h"
 
-#include <Kore/Application.h>
 #include <Kore/IO/FileReader.h>
 #include <Kore/Math/Core.h>
 #include <Kore/System.h>
 #include <Kore/Input/Keyboard.h>
-#include <Kore/Input/Mouse.h>1
+#include <Kore/Input/Mouse.h>
 #include <Kore/Audio/Mixer.h>
 #include <Kore/Graphics/Image.h>
 #include <Kore/Graphics/Graphics.h>
@@ -88,6 +87,12 @@ namespace {
 	}
 
 	void update() {
+		Graphics::begin();
+		Graphics::clear(Graphics::ClearColorFlag | Graphics::ClearDepthFlag, 0xff000000);
+		
+		// Needs to be set before any other values can be set
+		program->set();
+
 		float t = (float)(System::time() - startTime);
 
 		float timeSinceLastFrame = t - lastT;
@@ -143,17 +148,14 @@ namespace {
 
 		Kore::Audio::update();
 
-		Graphics::begin();
-		Graphics::clear(Graphics::ClearColorFlag | Graphics::ClearDepthFlag, 0xff000000);
 
-		program->set();
 		Graphics::setTexture(tex, image);
 		Graphics::setVertexBuffer(*vertexBuffer);
 		Graphics::setIndexBuffer(*indexBuffer);
 		Graphics::drawIndexedVertices();
 
-		Graphics::end();
 		Graphics::swapBuffers();
+		Graphics::end();
 	}
 
 	void keyDown(KeyCode code, wchar_t character) {
@@ -218,7 +220,7 @@ namespace {
 		}
 	}
 
-	void mouseMove(int x, int y, int movementX, int movementY) {
+	void mouseMove(int windowId, int x, int y, int movementX, int movementY) {
 		if (rotate) {
 			cameraRotX += (float)((mousePressY - y) * CAMERA_ROTATION_SPEED_X);
 			cameraRotY += (float)((mousePressX - x) * CAMERA_ROTATION_SPEED_Y);
@@ -227,13 +229,13 @@ namespace {
 		}
 	}
 
-	void mousePress(int button, int x, int y) {
+	void mousePress(int windowId, int button, int x, int y) {
 		rotate = true;
 		mousePressX = x;
 		mousePressY = y;
 	}
 
-	void mouseRelease(int button, int x, int y) {
+	void mouseRelease(int windowId, int button, int x, int y) {
 		rotate = false;
 	}
 
@@ -305,16 +307,32 @@ namespace {
 }
 
 int kore(int argc, char** argv) {
-	Application* app = new Application(argc, argv, width, height, 0, false, "Exercise5");
+	Kore::System::setName("TUD Game Technology - ");
+	Kore::System::setup();
+	Kore::WindowOptions options;
+	options.title = "Solution 5";
+	options.width = width;
+	options.height = height;
+	options.x = 100;
+	options.y = 100;
+	options.targetDisplay = -1;
+	options.mode = WindowModeWindow;
+	options.rendererOptions.depthBufferBits = 16;
+	options.rendererOptions.stencilBufferBits = 8;
+	options.rendererOptions.textureFormat = 0;
+	options.rendererOptions.antialiasing = 0;
+	Kore::System::initWindow(options);
 
 	init();
 
-	app->setCallback(update);
+	Kore::System::setCallback(update);
 
-	startTime = System::time();
 	Kore::Mixer::init();
 	Kore::Audio::init();
-	//Kore::Mixer::play(new SoundStream("back.ogg", true));
+
+
+	startTime = System::time();
+
 
 	Keyboard::the()->KeyDown = keyDown;
 	Keyboard::the()->KeyUp = keyUp;
@@ -324,9 +342,7 @@ int kore(int argc, char** argv) {
 
 	initCamera();
 
-	app->start();
+	Kore::System::start();
 
-	delete app;
-
-	return 0;
+	return 0; 
 }
