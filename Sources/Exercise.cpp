@@ -1,5 +1,6 @@
 #include "pch.h"
 
+#include <Kore/System.h>
 #include <Kore/IO/FileReader.h>
 #include <Kore/Math/Core.h>
 #include <Kore/System.h>
@@ -19,6 +20,7 @@ using namespace Kore;
 namespace {
 	const int width = 1024;
 	const int height = 768;
+	
 	Shader* vertexShader;
 	Shader* fragmentShader;
 	Program* program;
@@ -154,8 +156,16 @@ namespace {
 		Graphics::setIndexBuffer(*indexBuffer);
 		Graphics::drawIndexedVertices();
 
-		Graphics::swapBuffers();
+		/************************************************************************/
+		/* Exercise 5                                                           */
+		/************************************************************************/
+		/* Set values in your shader using the constant locations you defined, e.g.
+		* Graphics::setMatrix(ConstantLocation, Value);
+		*/
+
+
 		Graphics::end();
+		Graphics::swapBuffers();
 	}
 
 	void keyDown(KeyCode code, wchar_t character) {
@@ -220,7 +230,7 @@ namespace {
 		}
 	}
 
-	void mouseMove(int windowId, int x, int y, int movementX, int movementY) {
+	void mouseMove(int window, int x, int y, int movementX, int movementY) {
 		if (rotate) {
 			cameraRotX += (float)((mousePressY - y) * CAMERA_ROTATION_SPEED_X);
 			cameraRotY += (float)((mousePressX - x) * CAMERA_ROTATION_SPEED_Y);
@@ -229,13 +239,13 @@ namespace {
 		}
 	}
 
-	void mousePress(int windowId, int button, int x, int y) {
+	void mousePress(int window, int button, int x, int y) {
 		rotate = true;
 		mousePressX = x;
 		mousePressY = y;
 	}
 
-	void mouseRelease(int windowId, int button, int x, int y) {
+	void mouseRelease(int window, int button, int x, int y) {
 		rotate = false;
 	}
 
@@ -272,7 +282,6 @@ namespace {
 		cl_normalMatrix = program->getConstantLocation("normalMatrix");
 		cl_lightPos = program->getConstantLocation("lightPos");
 
-
 		// Set this to 1.0f when you do your transformations in the vertex shader
 		float scale = 3.0f;
 
@@ -307,32 +316,16 @@ namespace {
 }
 
 int kore(int argc, char** argv) {
-	Kore::System::setName("TUD Game Technology - ");
-	Kore::System::setup();
-	Kore::WindowOptions options;
-	options.title = "Solution 5";
-	options.width = width;
-	options.height = height;
-	options.x = 100;
-	options.y = 100;
-	options.targetDisplay = -1;
-	options.mode = WindowModeWindow;
-	options.rendererOptions.depthBufferBits = 16;
-	options.rendererOptions.stencilBufferBits = 8;
-	options.rendererOptions.textureFormat = 0;
-	options.rendererOptions.antialiasing = 0;
-	Kore::System::initWindow(options);
+	Kore::System::init("Solution 5", width, height);
 
 	init();
 
 	Kore::System::setCallback(update);
 
+	startTime = System::time();
 	Kore::Mixer::init();
 	Kore::Audio::init();
-
-
-	startTime = System::time();
-
+	//Kore::Mixer::play(new SoundStream("back.ogg", true));
 
 	Keyboard::the()->KeyDown = keyDown;
 	Keyboard::the()->KeyUp = keyUp;
@@ -344,5 +337,5 @@ int kore(int argc, char** argv) {
 
 	Kore::System::start();
 
-	return 0; 
+	return 0;
 }
