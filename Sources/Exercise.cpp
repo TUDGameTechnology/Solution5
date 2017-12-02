@@ -6,10 +6,12 @@
 #include <Kore/System.h>
 #include <Kore/Input/Keyboard.h>
 #include <Kore/Input/Mouse.h>
-#include <Kore/Audio/Mixer.h>
-#include <Kore/Graphics/Image.h>
-#include <Kore/Graphics/Graphics.h>
+#include <Kore/Audio1/Audio.h>
+#include <Kore/Graphics1/Image.h>
+#include <Kore/Graphics4/Graphics.h>
+#include <Kore/Graphics4/PipelineState.h>
 #include <Kore/Log.h>
+#include "Memory.h"
 #include "ObjLoader.h"
 
 using namespace Kore;
@@ -21,19 +23,19 @@ namespace {
 	const int width = 1024;
 	const int height = 768;
 	
-	Shader* vertexShader;
-	Shader* fragmentShader;
-	Program* program;
-	VertexBuffer* vertexBuffer;
-	IndexBuffer* indexBuffer;
+	Graphics4::Shader* vertexShader;
+	Graphics4::Shader* fragmentShader;
+	Graphics4::PipelineState* pipeline;
+	Graphics4::VertexBuffer* vertexBuffer;
+	Graphics4::IndexBuffer* indexBuffer;
 	Mesh* mesh;
-	Texture* image;
-	TextureUnit tex;
+	Graphics4::Texture* image;
+	Graphics4::TextureUnit tex;
 
-	Kore::ConstantLocation cl_modelViewMatrix;
-	Kore::ConstantLocation cl_normalMatrix;
+	Graphics4::ConstantLocation cl_modelViewMatrix;
+	Graphics4::ConstantLocation cl_normalMatrix;
 
-	Kore::ConstantLocation cl_lightPos;
+	Graphics4::ConstantLocation cl_lightPos;
 
 	double startTime;
 	float lastT = 0;
@@ -89,11 +91,11 @@ namespace {
 	}
 
 	void update() {
-		Graphics::begin();
-		Graphics::clear(Graphics::ClearColorFlag | Graphics::ClearDepthFlag, 0xff000000);
+		Graphics4::begin();
+		Graphics4::clear(Graphics4::ClearColorFlag | Graphics4::ClearDepthFlag, 0xff000000);
 		
 		// Needs to be set before any other values can be set
-		program->set();
+		Graphics4::setPipeline(pipeline);
 
 		float t = (float)(System::time() - startTime);
 
@@ -132,29 +134,29 @@ namespace {
 			* Kore::mat4::RotationY(cameraRotY)
 			* Kore::mat4::Translation(-cameraX, -cameraY, -cameraZ);
 
-		Graphics::setMatrix(cl_modelViewMatrix, modelView);
+		Graphics4::setMatrix(cl_modelViewMatrix, modelView);
 
 		// prepare normal matrix and pass it to shaders 
 		Kore::mat4 normalMatrix = modelView;
 		normalMatrix.Invert();
 		normalMatrix = normalMatrix.Transpose();
-		Graphics::setMatrix(cl_normalMatrix, normalMatrix);
+		Graphics4::setMatrix(cl_normalMatrix, normalMatrix);
 
 
 		// update light pos
 		lightPosX = 20 * Kore::sin(2 * t);
 		lightPosY = 10;
 		lightPosZ = 20 * Kore::cos(2 * t);
-		Graphics::setFloat3(cl_lightPos, lightPosX, lightPosY, lightPosZ);
+		Graphics4::setFloat3(cl_lightPos, lightPosX, lightPosY, lightPosZ);
 
 
-		Kore::Audio::update();
+		Kore::Audio2::update();
 
 
-		Graphics::setTexture(tex, image);
-		Graphics::setVertexBuffer(*vertexBuffer);
-		Graphics::setIndexBuffer(*indexBuffer);
-		Graphics::drawIndexedVertices();
+		Graphics4::setTexture(tex, image);
+		Graphics4::setVertexBuffer(*vertexBuffer);
+		Graphics4::setIndexBuffer(*indexBuffer);
+		Graphics4::drawIndexedVertices();
 
 		/************************************************************************/
 		/* Exercise 5                                                           */
@@ -164,37 +166,37 @@ namespace {
 		*/
 
 
-		Graphics::end();
-		Graphics::swapBuffers();
+		Graphics4::end();
+		Graphics4::swapBuffers();
 	}
 
-	void keyDown(KeyCode code, wchar_t character) {
+	void keyDown(KeyCode code) {
 		switch (code)
 		{
-		case Key_Left:
-		case Key_A:
+		case KeyLeft:
+		case KeyA:
 			moveLeft = true;
 			break;
-		case Key_Right:
-		case Key_D:
+		case KeyRight:
+		case KeyD:
 			moveRight = true;
 			break;
-		case Key_Up:
+		case KeyUp:
 			moveUp = true;
 			break;
-		case Key_Down:
+		case KeyDown:
 			moveDown = true;
 			break;
-		case Key_W:
+		case KeyW:
 			moveForward = true;
 			break;
-		case Key_S:
+		case KeyS:
 			moveBackward = true;
 			break;
-		case Key_R:
+		case KeyR:
 			initCamera();
 			break;
-		case Key_L:
+		case KeyL:
 			Kore::log(Kore::LogLevel::Info, "Position: (%.2f, %.2f, %.2f) - Rotation: (%.2f, %.2f, %.2f)\n", cameraX, cameraY, cameraZ, cameraRotX, cameraRotY, cameraRotZ);
 			break;
 		default:
@@ -202,27 +204,27 @@ namespace {
 		}
 	}
 
-	void keyUp(KeyCode code, wchar_t character) {
+	void keyUp(KeyCode code) {
 		switch (code)
 		{
-		case Key_Left:
-		case Key_A:
+		case KeyLeft:
+		case KeyA:
 			moveLeft = false;
 			break;
-		case Key_Right:
-		case Key_D:
+		case KeyRight:
+		case KeyD:
 			moveRight = false;
 			break;
-		case Key_Up:
+		case KeyUp:
 			moveUp = false;
 			break;
-		case Key_Down:
+		case KeyDown:
 			moveDown = false;
 			break;
-		case Key_W:
+		case KeyW:
 			moveForward = false;
 			break;
-		case Key_S:
+		case KeyS:
 			moveBackward = false;
 			break;
 		default:
@@ -250,26 +252,32 @@ namespace {
 	}
 
 	void init() {
+		Memory::init();
+
 		mesh = loadObj("tiger.obj");
-		image = new Texture("tiger-atlas.jpg", true);
+		image = new Graphics4::Texture("tiger-atlas.jpg", true);
 
 		FileReader vs("shader.vert");
 		FileReader fs("shader.frag");
-		vertexShader = new Shader(vs.readAll(), vs.size(), VertexShader);
-		fragmentShader = new Shader(fs.readAll(), fs.size(), FragmentShader);
+		vertexShader = new Graphics4::Shader(vs.readAll(), vs.size(), Graphics4::VertexShader);
+		fragmentShader = new Graphics4::Shader(fs.readAll(), fs.size(), Graphics4::FragmentShader);
 
 		// This defines the structure of your Vertex Buffer
-		VertexStructure structure;
-		structure.add("pos", Float3VertexData);
-		structure.add("tex", Float2VertexData);
-		structure.add("nor", Float3VertexData);
+		Graphics4::VertexStructure structure;
+		structure.add("pos", Graphics4::Float3VertexData);
+		structure.add("tex", Graphics4::Float2VertexData);
+		structure.add("nor", Graphics4::Float3VertexData);
 
-		program = new Program;
-		program->setVertexShader(vertexShader);
-		program->setFragmentShader(fragmentShader);
-		program->link(structure);
+		pipeline = new Graphics4::PipelineState;
+		pipeline->inputLayout[0] = &structure;
+		pipeline->inputLayout[1] = nullptr;
+		pipeline->vertexShader = vertexShader;
+		pipeline->fragmentShader = fragmentShader;
+		pipeline->depthMode = Graphics4::ZCompareLess;
+		pipeline->depthWrite = true;
+		pipeline->compile();
 
-		tex = program->getTextureUnit("tex");
+		tex = pipeline->getTextureUnit("tex");
 
 		/************************************************************************/
 		/* Exercise 5                                                           */
@@ -278,14 +286,14 @@ namespace {
 		* program->getConstantLocation("bla");
 		*/
 
-		cl_modelViewMatrix = program->getConstantLocation("modelViewMatrix");
-		cl_normalMatrix = program->getConstantLocation("normalMatrix");
-		cl_lightPos = program->getConstantLocation("lightPos");
+		cl_modelViewMatrix = pipeline->getConstantLocation("modelViewMatrix");
+		cl_normalMatrix = pipeline->getConstantLocation("normalMatrix");
+		cl_lightPos = pipeline->getConstantLocation("lightPos");
 
 		// Set this to 1.0f when you do your transformations in the vertex shader
 		float scale = 3.0f;
 
-		vertexBuffer = new VertexBuffer(mesh->numVertices, structure, 0);
+		vertexBuffer = new Graphics4::VertexBuffer(mesh->numVertices, structure, 0);
 		{
 			float* vertices = vertexBuffer->lock();
 			for (int i = 0; i < mesh->numVertices; ++i) {
@@ -302,16 +310,13 @@ namespace {
 		}
 
 		{
-			indexBuffer = new IndexBuffer(mesh->numFaces * 3);
+			indexBuffer = new Graphics4::IndexBuffer(mesh->numFaces * 3);
 			int* indices = indexBuffer->lock();
 			for (int i = 0; i < mesh->numFaces * 3; ++i) {
 				indices[i] = mesh->indices[i];
 			}
 			indexBuffer->unlock();
 		}
-
-		Graphics::setRenderState(DepthTest, true);
-		Graphics::setRenderState(DepthTestCompare, ZCompareLess);
 	}
 }
 
@@ -323,8 +328,8 @@ int kore(int argc, char** argv) {
 	Kore::System::setCallback(update);
 
 	startTime = System::time();
-	Kore::Mixer::init();
-	Kore::Audio::init();
+	Kore::Audio1::init();
+	Kore::Audio2::init();
 	//Kore::Mixer::play(new SoundStream("back.ogg", true));
 
 	Keyboard::the()->KeyDown = keyDown;

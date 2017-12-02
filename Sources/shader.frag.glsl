@@ -1,14 +1,14 @@
-precision mediump float;
-
+#version 450
 
 uniform sampler2D tex;
-varying vec2 texCoord;
-varying vec3 normal;
-varying vec3 lightDirection;
-varying vec3 eyeCoord; 
+in vec2 texCoord;
+in vec3 normal;
+in vec3 lightDirection;
+in vec3 eyeCoord; 
 
-void kore() {
-	
+out vec4 frag;
+
+void main() {
 	const float amb = 0.2;
 	const float diff = 1.0;
 	const float spec = 2.0;
@@ -25,5 +25,5 @@ void kore() {
 
 	vec4 light = ambient + diffuse + specular;
 
-	gl_FragColor = light * texture2D(tex, texCoord);
+	frag = light * texture(tex, texCoord);
 }

@@ -1,16 +1,18 @@
+#version 450
+
 uniform mat4 modelViewMatrix;
 uniform mat4 normalMatrix;
 uniform vec3 lightPos;
 
-attribute vec3 pos;
-attribute vec2 tex;
-attribute vec3 nor;
-varying vec2 texCoord;
-varying vec3 normal;
-varying vec3 lightDirection;
-varying vec3 eyeCoord;
+in vec3 pos;
+in vec2 tex;
+in vec3 nor;
+out vec2 texCoord;
+out vec3 normal;
+out vec3 lightDirection;
+out vec3 eyeCoord;
 
-void kore() {
+void main() {
 	eyeCoord = (modelViewMatrix * vec4(pos, 1.0)).xyz;
 	vec3 transformedLightPos = (modelViewMatrix * vec4(lightPos, 1.0)).xyz;
 	lightDirection = transformedLightPos - eyeCoord;
